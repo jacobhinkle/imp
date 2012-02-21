@@ -97,7 +97,7 @@ matrices and allow requests like get_row or get_column or get_range,
 which would return dense arrays in the format above, perhaps wrapped
 in some extra annotation that tells the world that this came from a
 partial request.
-* If the front-end is Javascript, it must be easy and fast to parse into ArrayBuffers
+** If the front-end is Javascript, it must be easy and fast to parse into ArrayBuffers
 Right now only WebGL makes explicit use of ArrayBuffers and Typed
 Arrays:
 
@@ -112,9 +112,7 @@ The additions above, with a directive to interpret float binary data
 as data to be added directly into ArrayBuffers of the right type,
 _would_ make it easy for us to parse into ArrayBuffers.
 
-
-
-* Imagine wild success here
+** Imagine wild success here
 Google (W3C?) should stick support for this in their websocket
 implementation, so in addition to saying
 
@@ -129,3 +127,6 @@ for javascript processing.
 
 However fast Javascript is nowadays, we cannot hope for it to be
 faster than carefully-designed C++.
+* IMP API
+  * connect() - establish connection with an imp server (handshaking, etc.)
+  * publish() - copy local data to imp server
