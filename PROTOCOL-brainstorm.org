@@ -1,1 +1,5 @@
 * BSON protocol for data transfer/storage
+
+* API
+  * connect() - establish connection with an imp server (handshaking, etc.)
+  * publish() - copy local data to imp server
