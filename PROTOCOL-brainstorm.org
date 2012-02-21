@@ -1,15 +1,132 @@
-* short term goals (proofs of concept)
-** minimal working examples
-*** data accepting demo
-    just accept a vector of floats from matlab and python and print it
-    to log file
-*** data serving demo
-    be able to retrieve a vector from javascript(other?) and print it
-*** 2D plot from matlab/python data source
-    plot with D3
+* Use BSON as a base protocol for what goes on the wire
 
-* BSON protocol for data transfer/storage
+http://bsonspec.org/
 
-* API
+I don't know if BSON has any mechanisms for extension, but I believe
+BSON has the right basic idea.
+
+** Why not _just BSON_?
+The main reason we need more than BSON is that BSON tags every single
+element in an array, even if the array is known to be homogeneous
+ahead of time. This is terrible for downstream processing, where
+things will end up in a double[] or an int[]. See, for example, 
+
+http://bsonspec.org/#/specification
+
+And ponder what [1,2,3,4,5,6] would become.
+
+** What's the fix?
+The fix is to enrich the BSON element with a few extra types. I would
+suggest that we start with a dense array of int32, uint32, float32,
+and float64.
+
+BSON already even has a "binary" data element, _and_ a "user-defined"
+subtype. All we have to do is create a few standard new subtypes for
+int32, uint32, float32 and float64 data. This would not be enough for
+matrices/rank-3 tensors of data, because we don't know the
+dimensions. But I think the right way to solve this is through
+metadata.
+
+So, assume for now that we replace the subtype entry with:
+
+subtype ::= "\x00" Binary/Generic
+          | "\x01" Function
+          | "\x02" Binary (Old)
+          | "\x03" UUID
+          | "\x05" MD5
+          | "\x10" 16-bit integer contiguous data, little-endian
+          | "\x11" 32-bit integer contiguous data, little-endian
+          | "\x12" IEEE 754 (32-bit floats) contiguous data, little-endian
+          | "\x13" IEEE 854 (64-bit floats) contiguous data, little-endian
+          | "\x80" User defined
+
+** Is there an easier way out?
+If we can contact the people in charge of the BSON spec and convince
+them to add float subtypes, we don't need to be stewards of the "fixed
+BSON" spec. This is something to seriously consider.
+
+** How do we encode the things we're interested in?
+A matrix of floats could be simply encoded by convention as a BSON
+document:
+
+matrix_float ::= "\x03" "matrix_float" MATRIX_OBJ
+MATRIX_OBJ ::= "\x10" "nrows" int32 "\x10" "ncols" int32 "\x05" "data" MATRIX_DATA
+MATRIX_DATA ::= int32 "\x12" (byte*)
+
+matrix_double ::= "\x03" "matrix_double" MATRIX_OBJ
+MATRIX_OBJ ::= "\x10" "nrows" int32 "\x10" "ncols" int32 "\x05" "data" MATRIX_DATA
+MATRIX_DATA ::= int32 "\x13" (byte*)
+
+When decoded, these should become the following javascript objects:
+
+matrix_float --> { matrix_float: { nrows: [number of rows of the matrix],
+                                   ncols: [number of cols of the matrix],
+                                   data: [Float32Array of the right size and contents]
+			  	     }
+                 }
+
+matrix_double --> { matrix_double: { nrows: [number of rows of the matrix],
+                                     ncols: [number of cols of the matrix],
+                                     data: [Float64Array of the right size and contents]
+				       }
+                  }
+
+If we want to do general rank-n tensors, perhaps the way to encode is instead
+
+{ tensor_float: { dims: [array of ints],
+                  data: [Float32Array of the right size and contents]
+		     } 
+}
+
+** Sparse matrices
+I think the way to store sparse matrices is to use one the
+based-on-dense-arrays formats, like CSC and CSR, and just create
+little conventional formats for those.
+
+** DECIDE: column-major vs row-major?
+Does it matter?
+
+** data too large for a single packet
+Should we worry about multi-part transfers of matrices? Presumably the
+point is to make large data transfers feasible.
+
+I claim that this is the responsibility of the lower-level
+networking infrastructure instead. Issues like partial requests can be
+handled by the higher-level API, which would expose metadata for
+matrices and allow requests like get_row or get_column or get_range,
+which would return dense arrays in the format above, perhaps wrapped
+in some extra annotation that tells the world that this came from a
+partial request.
+** If the front-end is Javascript, it must be easy and fast to parse into ArrayBuffers
+Right now only WebGL makes explicit use of ArrayBuffers and Typed
+Arrays:
+
+https://developer.mozilla.org/en/JavaScript_typed_arrays
+
+But I believe if web technology is going to become faster, more HTML5
+APIs will use it. There's WebCL being discussed, for example, and I
+would _love_ a WebBLAS and WebLAPACK. This would all but require
+raw vector support.
+
+The additions above, with a directive to interpret float binary data
+as data to be added directly into ArrayBuffers of the right type,
+_would_ make it easy for us to parse into ArrayBuffers.
+
+** Imagine wild success here
+Google (W3C?) should stick support for this in their websocket
+implementation, so in addition to saying
+
+socket.binaryType = 'arraybuffer'
+
+we'd say
+
+socket.binaryType = 'imp'
+
+and the data would come already parsed for us, from the browser, ready
+for javascript processing.
+
+However fast Javascript is nowadays, we cannot hope for it to be
+faster than carefully-designed C++.
+* IMP API
   * connect() - establish connection with an imp server (handshaking, etc.)
   * publish() - copy local data to imp server
