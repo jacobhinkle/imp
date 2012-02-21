@@ -57,6 +57,17 @@ matrix_double ::= "\x03" "matrix_double" MATRIX_OBJ
 MATRIX_OBJ ::= "\x10" "nrows" int32 "\x10" "ncols" int32 "\x05" "data" MATRIX_DATA
 MATRIX_DATA ::= int32 "\x13" (byte*)
 
+jdh-should we have a separate matrix type? I am envisioning vectors as
+the main type, with very little logic (slicing) done by the client.  So
+if i have a matrix that is really representing a few different named
+columns, those columns should be just separate vectors on the server.
+We should aim for high order tensors (like 3D volumes) at some point,
+but our priority should def be on the most popular plot types first, so
+vectors of data, and matrices (images).  Is there a good way to just
+have a size vector in BSON instead of nrows/ncols?  Prob not a huge deal
+to add rank n objects later on and just use familiar stuff at first
+otherwise...
+
 When decoded, these should become the following javascript objects:
 
 matrix_float --> { matrix_float: { nrows: [number of rows of the matrix],
@@ -85,6 +96,10 @@ little conventional formats for those.
 
 ** DECIDE: column-major vs row-major?
 Does it matter?
+jdh-will we be indexing data ever? also i have to say it prob doesn't
+matter.  I'd vote that the data should just look like a memcpy, if the
+client decides to interpret that with the indices permuted then good on
+them.
 
 ** data too large for a single packet
 Should we worry about multi-part transfers of matrices? Presumably the
