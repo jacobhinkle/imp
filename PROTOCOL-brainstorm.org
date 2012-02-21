@@ -128,5 +128,30 @@ for javascript processing.
 However fast Javascript is nowadays, we cannot hope for it to be
 faster than carefully-designed C++.
 * IMP API
-  * connect() - establish connection with an imp server (handshaking, etc.)
-  * publish() - copy local data to imp server
+** connect() - establish connection with an imp server (handshaking, etc.)
+Eventually we'll have to worry about authentication, so whatever the
+handshake is here, either we design username-password into it (lot of
+work, easy to get wrong) or we push that to some other layer.
+** publish() - copy local data to imp server
+
+The format for publish should be as simple as possible. Ideally it
+would work a but like HTTP verbs.
+
+In fact, IMP could be simply a special HTTP server with extra stuff on
+top of what gets GET'ed and PUT'ed
+
+http://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol
+
+This would let us borrow a lot of code that really we don't want to
+write ourselves.
+
+* Keeping it _extra_ simple
+Maybe the IMP backend should just be MongoDB:
+http://www.mongodb.org/
+http://www.mongodb.org/display/DOCS/GridFS
+
+https://github.com/square/cube uses Mongo for their backend.
+
+After all, whatever gets sent over publish will need to persist
+_somewhere_, and it looks like the format we do is pretty close to
+BSON anyway.
