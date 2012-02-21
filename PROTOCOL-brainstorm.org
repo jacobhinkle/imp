@@ -1,3 +1,13 @@
+* short term goals (proofs of concept)
+** minimal working examples
+*** data accepting demo
+    just accept a vector of floats from matlab and python and print it
+    to log file
+*** data serving demo
+    be able to retrieve a vector from javascript(other?) and print it
+*** 2D plot from matlab/python data source
+    plot with D3
+
 * BSON protocol for data transfer/storage
 
 * API
