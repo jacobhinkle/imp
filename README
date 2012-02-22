@@ -1,0 +1,15 @@
+Imp: simple scientific data storage
+
+Imp tries to solve a simple problem: you have applications and
+scripts, written in different languages, which run for a while, and
+which generate interesting data during the course of the
+execution. Imp lets you publish this data and stores it for you, so it
+can be later retrieved. You can use to debug your program, to compare
+different runs, or simply to avoid losing that output file, once
+again. 
+
+Imp offers a few advantages. If you want to write a visualization
+front-end, it only needs to speak imp, and can be easily separated
+from your processing script. It also transparently provides archival,
+so the data for that figure you generated three months ago? Don't
+worry: imp still remembers it.
