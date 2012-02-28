@@ -19,9 +19,15 @@ def run(server_class=http.server.HTTPServer, handler_class=http.server.BaseHTTPR
     server_address = ('', port)
 
     print('Starting server on port {port}'.format(port=port))
+    print('Press Ctrl+C to stop')
 
     httpd = server_class(server_address, handler_class)
-    httpd.serve_forever()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        # Clean up stuff before exiting
+
+        print('Shutting down...')
 
 if __name__ == '__main__':
     # parse command line args
