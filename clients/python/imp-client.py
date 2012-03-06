@@ -8,7 +8,7 @@ if __name__ == '__main__':
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
     # Connect the socket to the port where the server is listening
-    server_address = '../../server/impsocket'
+    server_address = '/tmp/impsocket'
     print('connecting to {addr}'.format(addr=server_address),file=sys.stderr)
     try:
         sock.connect(server_address)

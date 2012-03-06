@@ -46,7 +46,7 @@ if __name__ == '__main__':
     # parse command line args
     parser = argparse.ArgumentParser(description='IMP: a basic scientific data server')
     #parser.add_argument('--port', metavar='p', type=int, help='Port on which to listen', default=8000)
-    parser.add_argument('--socket', metavar='s', type=str, help='Address of socket file', default='impsocket')
+    parser.add_argument('--socket', metavar='s', type=str, help='Address of socket file', default='/tmp/impsocket')
 
     args = parser.parse_args()
 
