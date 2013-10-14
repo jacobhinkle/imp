@@ -64,6 +64,8 @@ executable imp
   -- Other library packages from which modules are imported.
   build-depends:       base ==4.6.*
     , stm
+    , async >=2.0 && <2.1
     , time
     , containers
     , network
+    , array

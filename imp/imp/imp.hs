@@ -1,17 +1,25 @@
-{-# LANGUAGE ExistentialQuantification #-}
 -- Notice: this follows the outline in the slides here:
 -- http://community.haskell.org/~simonmar/slides/cadarache2012/5%20-%20server%20apps.pdf
 -- JDH
+
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE RecordWildCards #-}
 
 import Network
 import Control.Monad
 import Control.Exception.Base
 import Control.Concurrent
 import Control.Concurrent.STM
+import Control.Concurrent.Async
 import qualified Data.Map as Map
 import System.IO
 import Data.Time.Clock
 import Text.Printf
+import Data.Int
+
+-- modules related to share arrays
+import Data.Array
+import Data.Ix
 
 -- Our own class for allowed primitive element types
 class Primitive
@@ -31,28 +39,40 @@ data Share = Share { mTime :: UTCTime, payload :: ShareArray }
 -- publisher account. holds info about the publisher, and a list of their shares
 data PublisherAcct = PublisherAcct { shares :: Map.Map String Share }
 
--- this holds info about currently connected clients who are watching
--- published shares for updates.  watched shares will send push
--- notifications to these clients whenever a share is updated.
--- TODO: This is not the right data structure for this.  Instead, we need a
--- structure that we links Shares to Clients but is also cleaned up easily
--- when a client disconnects
-data SubscriberAcct = SubscriberAcct { subbedShares :: [Share] }
+type ClientName = String
 
--- this can hold info about connected clients
-data Client
+-- info about connected clients
+data Client = Client
+    { clientHandle :: Handle
+    , clientSubbedShares :: [Share]
+    , clientSendChan :: TChan ServerMessage
+    }
+
+newClient :: Handle -> STM Client
+newClient handle = do
+    return Client { clientHandle=handle
+        , clientSubbedShares=[]
+        , clientSendChan=newTChan
+        }
 
 -- server just holds a bunch of accounts, indexed by user name
 -- TODO: I think we'll put each level inside a tvar for more granular
 -- atomicity-JDH
 data Server = Server { publishers :: TVar (Map.Map String PublisherAcct)
-                    , subscribers :: TVar (Map.Map String SubscriberAcct) }
+                    , clients :: TVar (Map.Map ClientName Client) }
 
 -- creating a new TVar requires us to be in IO, hence this helper fn
 newServer :: IO Server
 newServer = do
     p <- newTVarIO Map.empty
     return Server { publishers = p }
+
+-- request and response types
+data ClientRequest = GetShare String | ListShares
+
+data ServerMessage = Notice String
+    | Deliver Share
+    | ServerError String
 
 -- hardcoded port. TODO: yaml config files ala physicali
 port :: Int
@@ -69,30 +89,58 @@ main = withSocketsDo $ do
         (handle, host, port) <- accept sock
         printf "Accepted connection from %s:%s\n" host (show port)
         -- finally ensures handle is closed no matter what happens in talk
-        forkIO $ talk server handle `finally` hClose handle
+        let name0 = host ++ ":" ++ show port ++ "_"
+        forkIO $ talk server handle name0 `finally` hClose handle
+        printf "Closed connection from %s:%s\n" host (show port)
 
--- the Marlow slides give the following as a definition of forkFinally
-forkFinally :: IO a -> (Either SomeException a -> IO ()) -> IO ThreadId
-forkFinally action and_then = 
-    mask $ \restore ->
-        forkIO $ try (restore action) >>= and_then
--- I think this is a more general pattern that exists already, like we
--- could use forkIOWithUnmask or bracket or something, but I am unfamiliar
--- here so I'm just blindly using this until I understand it better -JDH
+-- straight from Simon Marlow's walkthrough
+checkAddClient :: Server -> ClientName -> Handle -> IO (Maybe Client)
+checkAddClient server@Server{..} name handle = atomically $ do
+    clientmap <- readTVar clients
+    if Map.member name clientmap
+       then return Nothing
+       else do
+         client <- newClient name handle
+         writeTVar clients (Map.insert name client clientmap)
+         --TODO: Log this sort of stuff with an appropriate threadsafe
+         -- logging facility
+         --broadcast server $ Notice $ name ++ " has connected"
+         return (Just client)
 
--- Straight outta Marlow's slides.
-talk :: Server -> Handle -> IO ()
-talk server@Server{..} handle = do
+removeClient :: Server -> ClientName -> IO ()
+removeClient server@Server{..} name = atomically $ do
+    clientmap <- readTVar clients
+    writeTVar clientmap (Map.delete name clientmap)
+    --broadcast server (Notice (name ++ " has disconnected"))
+
+runClient :: Server -> Client -> IO ()
+runClient server@Server{..} client@Client{..}
+ = concurrently send receive
+ where
+    send = join $ atomically $ do
+        msg <- readTChan clientSendChan
+        return $ do
+            continue <- handleMessage server client msg
+            when continue $ send
+    receive = forever $ do
+       msg <- hGetLine clientHandle
+       atomically $ sendMessage client $ Command msg
+
+-- The String here is the prefix of this client's name.  It's just
+-- host:port_, to which we append an integer
+talk :: Server -> Handle -> String -> IO ()
+talk server@Server{..} handle name0 = do
     hSetNewlineMode handle universalNewlineMode
     hSetBuffering handle LineBuffering
-    readName
+    newName 0
   where
-    readName = do
+    newName i = do
+        let name = printf "%s%04d" name0 i
         m <- checkAddClient server name handle
         case m of
             Nothing -> do
-                hPrintf handle "The name %s is in use“ name
-                readName
+                hPrintf handle "The name %s is in use" name
+                newName $ i+1
             Just client -> do
-                runClient server client 
+                runClient server client
                     `finally` removeClient server name
