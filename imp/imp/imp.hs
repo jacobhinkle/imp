@@ -34,6 +34,10 @@ instance Primitive Int64
 data ShareArray = forall i e. (Ix i, Primitive e) => ShareArray (TArray i e)
 
 -- A share is just a ShareArray (array of some shape and element type), along with some metadata
+-- TODO: make Share a recursively defined tree type.  That will allow the
+-- "folder"-like view while maintaining easy subscription to complex shares
+-- TODO: stuff like the Share types belongs in a library.  This file should
+-- only contain server/client related stuff
 data Share = Share { mTime :: UTCTime, payload :: ShareArray }
 
 -- publisher account. holds info about the publisher, and a list of their shares
